@@ -1,0 +1,4 @@
+gym
+matplotlib
+jupyterthemes
+scikit-learn
