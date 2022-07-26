@@ -1,7 +1,0 @@
-README.md
-setup.py
-toy_models.egg-info/PKG-INFO
-toy_models.egg-info/SOURCES.txt
-toy_models.egg-info/dependency_links.txt
-toy_models.egg-info/requires.txt
-toy_models.egg-info/top_level.txt
