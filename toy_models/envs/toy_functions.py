@@ -19,6 +19,8 @@ import imageio
 
 jtplot.style()
 plt.rcParams['axes.grid'] = False
+plt.rc('axes', unicode_minus=False)
+
 
 # Color maps
 COLORS =['gist_earth', 'turbo' ]
