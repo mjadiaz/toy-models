@@ -102,6 +102,7 @@ TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'ps_bottom': 10,
     'ps_top': 15,
     'parameters_dimension': 2,
+    'observables_dimension': 1,
     'function_name': 'egg_box',
     'goal': 100,
     'kernel_bandwidth': 0.4,
@@ -110,8 +111,12 @@ TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'norm_min': -1,
     'norm_max': 1,
     'parameter_shift_mode': False,
+    'density_limit': 1.,
     'density_state': True,
-    'density_limit': 1.
+    # Implement this below
+    'observables_state': True,
+    'parameters_state': True,
+    'lh_function': 'distance',
         })
 
 
@@ -127,17 +132,23 @@ class Simulator:
         self.top = self.config.ps_top
         self.norm_min = self.config.norm_min
         self.norm_max = self.config.norm_max
+        self.lh_function = self.config.lh_function
+        
     
     def distance_likelihood(self,variable, maximum=1,acceptance=20):
         stability = acceptance**2*np.exp(-maximum)
         dlh = -np.log(((variable-self.goal)**2+stability)*(acceptance)**(-2))
         return dlh
+
     def gaussian_likelihood(self, variable, sigma=10):
         lh = np.exp(- (variable-self.goal)**2/(2*sigma**2))
-        return lh
-    def likelihood(self, variable):
-        return self.distance_likelihood(variable)
+        return 
 
+    def likelihood(self, variable):
+        if self.lh_function == 'gaussian':
+            return self.gaussian_likelihood(variable)
+        if self.lh_function == 'distance':
+            return self.distance_likelihood(variable)
     
     def run(self, x1, x2):
         obs = self.function(x1,x2)
@@ -180,16 +191,30 @@ class ToyFunction2d_v1(gym.Env):
         self.density_limit = self.config.density_limit
         self.density_state = self.config.density_state
         
-
+        # Include observables in the state
+        self.observables_state = self.config.observables_state
+        self.observables_dimension = self.config.observables_dimension
+        self.parameters_state = self.config.parameters_state
+        
         # Physical parameter space info
         self.ps_bottom = self.config.ps_bottom
         self.ps_top = self.config.ps_top
-        
+       
+        # Initialize observation dimension 
+        self.observation_dimension = 0
+
+        # Observation dimension += n_observables
+        if self.parameters_state:
+            self.observation_dimension += self.config.parameters_dimension
+
+        # Observation dimension += n_observables
+        if self.observables_state:
+            self.observation_dimension += self.observables_dimension
+
         # Observation dimension: n_parameters + density
-        self.observation_dimension = self.config.parameters_dimension
         if self.density_state:
             self.observation_dimension += 1
-
+        
         # Action dimension: n_parameters
         self.action_dimension = self.config.parameters_dimension
         self.n_parameters = self.config.parameters_dimension
@@ -225,21 +250,45 @@ class ToyFunction2d_v1(gym.Env):
                  np.ones(self.action_dimension).astype(np.float32)
                 )
         
-        if not self.density_state: 
+        if self.parameters_state: 
             ## Observation space: Pure parameter state
             self.observation_space = spaces.Box(
                  np.array([self.norm_min, self.norm_min]).astype(np.float32),#,0]).astype(np.float32),
                  np.array([self.norm_max, self.norm_max]).astype(np.float32),#np.inf]).astype(np.float32)
                  )
-        else:
+        if self.density_state and self.parameters_state:
             # Observation space: State including the density
             self.observation_space = spaces.Box(
                     np.array([self.norm_min, self.norm_min,0]).astype(np.float32),
                     np.array([self.norm_max, self.norm_max,np.inf]).astype(np.float32)
                     )
 
-        self.seed()
+        if self.observables_state:
+            self.observation_space = spaces.Box(
+                    np.array([-np.inf]).astype(np.float32),
+                    np.array([np.inf]).astype(np.float32)
+                    )
+
+        if self.observables_state and self.density_state:
+            self.observation_space = spaces.Box(
+                    np.array([0, -np.inf]).astype(np.float32),
+                    np.array([np.inf, np.inf]).astype(np.float32)
+                    )
+
+        if self.observables_state and self.parameters_state:
+            self.observation_space = spaces.Box(
+                    np.array([self.norm_min, self.norm_min, -np.inf]).astype(np.float32),
+                    np.array([self.norm_max, self.norm_max, np.inf]).astype(np.float32)
+                    )
+
+        if self.observables_state and self.parameters_state and\
+                self.density_state:
+            self.observation_space = spaces.Box(
+                    np.array([self.norm_min, self.norm_min,0, -np.inf]).astype(np.float32),
+                    np.array([self.norm_max, self.norm_max,np.inf, np.inf]).astype(np.float32)
+                    )
     
+        self.seed()
     def reset(self):
         self.params_history = np.zeros((self.max_steps, self.n_parameters))
         self.params_history_real = np.zeros((self.max_steps, self.n_parameters))
@@ -261,13 +310,28 @@ class ToyFunction2d_v1(gym.Env):
         #self.state_real = np.hstack(initial_params_real)
         #self.state = np.hstack(initial_params_norm)
         # Starting with zero density
+        #if self.density_state:
+        #    self.state_real = np.hstack((initial_params_real, 0.))
+        #    self.state = np.hstack((initial_params_norm, 0.))
+        #else:
+        #    self.state_real = np.hstack((initial_params_real))
+        #    self.state = np.hstack((initial_params_norm))
+       
+        self.state_real = np.array([])
+        self.state = np.array([])
+        if self.parameters_state:
+            self.state_real = np.hstack((self.state_real, initial_params_real))
+            self.state = np.hstack((self.state, initial_params_norm))
+        if self.observables_state:
+            lh = self.lh_factor*self.simulator.run(*initial_params_real)
+            self.observables_current = np.array([lh]).flatten()
+            self.state_real = np.hstack((self.state_real, self.observables_current))
+            self.state = np.hstack((self.state, self.observables_current))
         if self.density_state:
-            self.state_real = np.hstack((initial_params_real, 0.))
-            self.state = np.hstack((initial_params_norm, 0.))
-        else:
-            self.state_real = np.hstack((initial_params_real))
-            self.state = np.hstack((initial_params_norm))
-        
+            #density = self.d_factor*self.density
+            density = 0
+            self.state_real = np.hstack((self.state_real, density))
+            self.state = np.hstack((self.state, density))
         # Calculate initial kernel
         self.kernel.fit(initial_params_norm.reshape(1,2))
 
@@ -388,14 +452,26 @@ class ToyFunction2d_v1(gym.Env):
         #self.state_real = np.hstack(self.next_params_real)#, self.density])
         #self.state = np.hstack(self.next_params)#, self.density])
         # Get next state: Density state
+        #if self.density_state:
+        #    self.state_real = np.hstack((self.next_params_real, self.density))
+        #    self.state = np.hstack((self.next_params, self.density))
+        #else:
+        #    self.state_real = np.hstack((self.next_params_real))
+        #    self.state = np.hstack((self.next_params))
+        
+        self.state_real = np.array([])
+        self.state = np.array([])
+        if self.parameters_state:
+            self.state_real = np.hstack((self.state_real, self.next_params_real))
+            self.state = np.hstack((self.state, self.next_params_real))
+        if self.observables_state:
+            lh = self.lh_factor*self.simulator.run(*self.next_params_real)
+            self.observables_current = np.array([lh]).flatten()
+            self.state_real = np.hstack((self.state_real, self.observables_current))
+            self.state = np.hstack((self.state, self.observables_current))
         if self.density_state:
-            self.state_real = np.hstack((self.next_params_real, self.density))
-            self.state = np.hstack((self.next_params, self.density))
-        else:
-            self.state_real = np.hstack((self.next_params_real))
-            self.state = np.hstack((self.next_params))
-
-
+            self.state_real = np.hstack((self.state_real, self.density))
+            self.state = np.hstack((self.state, self.density))
         # Get Reward
         self.reward = self.get_reward()
          
@@ -503,12 +579,13 @@ class DensityPlot:
         self.frame += 1
         
         if self.mode == 'human': 
-            plt.pause(0.01)
-        else:
+            plt.pause(0.00001)
+        if self.mode == 'video':
             img = fig2img(self.fig)
             self.img_list.append(img)
             if done:
                 save_mp4(self.img_list, self.video_name)
+    
 
             
 
