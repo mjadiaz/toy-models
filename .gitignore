@@ -1,4 +1,5 @@
 toy-models/toy_models.egg-info/
 toy-models/toy_models/__pycache__/
 toy-models/toy_models/envs/__pycache__/
+notebooks/.ipynb_checkpoints/
 .DS_Store
