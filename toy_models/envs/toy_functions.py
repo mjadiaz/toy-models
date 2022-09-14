@@ -112,9 +112,9 @@ TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'norm_max': 1,
     'parameter_shift_mode': False,
     'density_limit': 1.,
-    'density_state': True,
+    'density_state': False,
     # Implement this below
-    'observables_state': True,
+    'observables_state': False,
     'parameters_state': True,
     'lh_function': 'distance',
         })
@@ -142,7 +142,7 @@ class Simulator:
 
     def gaussian_likelihood(self, variable, sigma=10):
         lh = np.exp(- (variable-self.goal)**2/(2*sigma**2))
-        return 
+        return lh
 
     def likelihood(self, variable):
         if self.lh_function == 'gaussian':
@@ -249,46 +249,38 @@ class ToyFunction2d_v1(gym.Env):
                 -np.ones(self.action_dimension).astype(np.float32),
                  np.ones(self.action_dimension).astype(np.float32)
                 )
-        
+        state_defined = False
+        # Cases 
+        # d+p+o
+        # d+p
+        # d+o
+        # p+o
+        # p
+        # o
+        space_low = []
+        space_high = []
+
         if self.parameters_state: 
             ## Observation space: Pure parameter state
-            self.observation_space = spaces.Box(
-                 np.array([self.norm_min, self.norm_min]).astype(np.float32),#,0]).astype(np.float32),
-                 np.array([self.norm_max, self.norm_max]).astype(np.float32),#np.inf]).astype(np.float32)
-                 )
-        if self.density_state and self.parameters_state:
-            # Observation space: State including the density
-            self.observation_space = spaces.Box(
-                    np.array([self.norm_min, self.norm_min,0]).astype(np.float32),
-                    np.array([self.norm_max, self.norm_max,np.inf]).astype(np.float32)
-                    )
-
+            [space_low.append(self.norm_min) for _ in range(self.n_parameters)]
+            [space_high.append(self.norm_max) for _ in range(self.n_parameters)]
+        
         if self.observables_state:
-            self.observation_space = spaces.Box(
-                    np.array([-np.inf]).astype(np.float32),
-                    np.array([np.inf]).astype(np.float32)
-                    )
+            space_low.append(-np.inf)
+            space_high.append(np.inf)
 
-        if self.observables_state and self.density_state:
-            self.observation_space = spaces.Box(
-                    np.array([0, -np.inf]).astype(np.float32),
-                    np.array([np.inf, np.inf]).astype(np.float32)
-                    )
+        if self.density_state:
+            space_low.append(0)
+            space_high.append(np.inf)
 
-        if self.observables_state and self.parameters_state:
-            self.observation_space = spaces.Box(
-                    np.array([self.norm_min, self.norm_min, -np.inf]).astype(np.float32),
-                    np.array([self.norm_max, self.norm_max, np.inf]).astype(np.float32)
-                    )
+        self.observation_space = spaces.Box(
+                np.array(space_low).astype(np.float32),
+                np.array(space_high).astype(np.float32)
+                )
 
-        if self.observables_state and self.parameters_state and\
-                self.density_state:
-            self.observation_space = spaces.Box(
-                    np.array([self.norm_min, self.norm_min,0, -np.inf]).astype(np.float32),
-                    np.array([self.norm_max, self.norm_max,np.inf, np.inf]).astype(np.float32)
-                    )
     
         self.seed()
+
     def reset(self):
         self.params_history = np.zeros((self.max_steps, self.n_parameters))
         self.params_history_real = np.zeros((self.max_steps, self.n_parameters))
@@ -297,6 +289,7 @@ class ToyFunction2d_v1(gym.Env):
         self.terminal = False
         self.info = dict()
         self.counter = 0
+        self.density = 0
 
         # Sample a random starting action 
         initial_params_real = self.parameter_space.sample()
@@ -319,6 +312,7 @@ class ToyFunction2d_v1(gym.Env):
        
         self.state_real = np.array([])
         self.state = np.array([])
+        
         if self.parameters_state:
             self.state_real = np.hstack((self.state_real, initial_params_real))
             self.state = np.hstack((self.state, initial_params_norm))
@@ -329,9 +323,8 @@ class ToyFunction2d_v1(gym.Env):
             self.state = np.hstack((self.state, self.observables_current))
         if self.density_state:
             #density = self.d_factor*self.density
-            density = 0
-            self.state_real = np.hstack((self.state_real, density))
-            self.state = np.hstack((self.state, density))
+            self.state_real = np.hstack((self.state_real, self.density))
+            self.state = np.hstack((self.state, self.density))
         # Calculate initial kernel
         self.kernel.fit(initial_params_norm.reshape(1,2))
 
@@ -411,10 +404,15 @@ class ToyFunction2d_v1(gym.Env):
         if parameters is None:
             lh = self.lh_factor*self.simulator.run(*self.next_params_real)
             density = self.d_factor*self.density
+            density_tm1 = self.d_factor*self.density_tm1
             rho = np.exp(-density)
-            reward = lh*(rho*(1+np.sign(lh))+1-np.sign(lh))/2\
-                    - self.density*(1+np.sign(np.log(self.density+(1-self.density_limit))))/2
-            reward = reward[0]
+            #reward = lh*(rho*(1+np.sign(lh))+1-np.sign(lh))/2\
+            #        - self.density*(1+np.sign(np.log(self.density+(1-self.density_limit))))/2
+            #reward = reward[0] - (density - density_tm1)
+            reward = lh + (density_tm1 - density)
+            if self.density > self.density_limit:
+                #self.terminal = True 
+                reward += -10*self.d_factor
         else:
             lh = self.lh_factor*self.simulator.run(parameters[:,0], parameters[:,1])
             densities = self.d_factor*self.predict_density(parameters)
@@ -446,24 +444,15 @@ class ToyFunction2d_v1(gym.Env):
         self.params_history[self.counter] = self.next_params
         self.params_history_real[self.counter] = self.next_params_real
         # Estimate density
+        self.density_tm1 = self.density
         self.density = self.predict_density(self.next_params_real.reshape(1,2))
 
-        ## Get next state: Pure parameter state
-        #self.state_real = np.hstack(self.next_params_real)#, self.density])
-        #self.state = np.hstack(self.next_params)#, self.density])
-        # Get next state: Density state
-        #if self.density_state:
-        #    self.state_real = np.hstack((self.next_params_real, self.density))
-        #    self.state = np.hstack((self.next_params, self.density))
-        #else:
-        #    self.state_real = np.hstack((self.next_params_real))
-        #    self.state = np.hstack((self.next_params))
         
         self.state_real = np.array([])
         self.state = np.array([])
         if self.parameters_state:
             self.state_real = np.hstack((self.state_real, self.next_params_real))
-            self.state = np.hstack((self.state, self.next_params_real))
+            self.state = np.hstack((self.state, self.next_params))
         if self.observables_state:
             lh = self.lh_factor*self.simulator.run(*self.next_params_real)
             self.observables_current = np.array([lh]).flatten()
@@ -472,6 +461,7 @@ class ToyFunction2d_v1(gym.Env):
         if self.density_state:
             self.state_real = np.hstack((self.state_real, self.density))
             self.state = np.hstack((self.state, self.density))
+
         # Get Reward
         self.reward = self.get_reward()
          
@@ -481,6 +471,8 @@ class ToyFunction2d_v1(gym.Env):
         self.counter += 1
 
         if self.counter == self.max_steps:
+            self.done = True
+        if self.terminal:
             self.done = True
 
         return [self.state, self.reward, self.done, self.info]
