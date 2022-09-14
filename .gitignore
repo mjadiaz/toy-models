@@ -1,3 +1,3 @@
-toy_models.egg-info/
-toy_models/__pycache__/
-toy_models/envs/__pycache__/
+toy-models/toy_models.egg-info/
+toy-models/toy_models/__pycache__/
+toy-models/toy_models/envs/__pycache__/
