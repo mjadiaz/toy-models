@@ -8,118 +8,37 @@ import random
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from jupyterthemes import jtplot
-
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from sklearn.neighbors import KernelDensity
-from PIL import Image, ImageDraw
-import io
-import imageio
 
-jtplot.style()
-plt.rcParams['axes.grid'] = False
-plt.rc('axes', unicode_minus=False)
-
-
-# Color maps
-COLORS =['gist_earth', 'turbo' ]
-# Utils
-
-def fig2img(fig):
-    """Convert a Matplotlib figure to a PIL Image and return it"""
-    buf = io.BytesIO()
-    fig.savefig(buf)
-    buf.seek(0)
-    img = Image.open(buf)
-    return img
-def save_mp4(images: list, name: str, fps=30):
-    imageio.mimwrite(name, images, fps=fps)
-
-def minmax(x, domain, codomain, reverse=False):
-    '''
-    Normalize an x value given a minimum and maximum mapping.
-
-    Args:
-    ----
-    x = value to normalize
-    domain = tuple for domain (from, to)
-    codomain = tuple for codomain (from,to)
-    reverse = inverse mapping, boolean.
-
-    Returns:
-    -------
-    x_normalized (x_unormalized if reverse=True)
-    '''
-    min_dom, max_dom = domain
-    min_codom, max_codom = codomain
-    A,B = max_codom - min_codom, min_codom
-    if reverse:
-        return np.clip((x - B)*(max_dom-min_dom)/A + min_dom, min_dom, max_dom)
-    else:
-        return np.clip(A*(x - min_dom)/(max_dom-min_dom)+B, min_codom, max_codom)
-
-# Functions to use as toy simulators
-def egg_box(x1,x2):
-    '''
-    Args: x1, x2
-    Returns: observable
-    '''
-    model = lambda x1, x2: (2 + np.cos(x1/2)*np.cos(x2/2))**5
-    obs = model(x1,x2)
-    return obs
-
-def gaussian_2d(x,y,mu1=13.5,mu2=13.5,height=100):
-    '''
-    Args: x1, x2
-    Returns: observable
-    '''
-    A = height # Gaussian height
-    x_0, y_0 = mu1, mu2 # Gaussian centers
-    sigma_x, sigma_y = 0.5, 0.5
-
-    gaussian = A * np.exp(-(((x - x_0)**2 / (2 * sigma_x**2)) + ((y - y_0)**2 / (2 * sigma_y**2))))
-    return gaussian
-
-def double_gaussian(x,y): 
-    '''
-    Args: x1, x2
-    Returns: observable
-    '''
-    gaussian = gaussian_2d(x,y)\
-            + gaussian_2d(x,y,mu1=11.5,mu2=11.5,height=100)
-    return gaussian
-
-FUNCTIONS = {
-        'egg_box': egg_box,
-        'double_gaussian': double_gaussian
-        }
+from toy_models.envs.model_functions import FUNCTIONS
+from toy_models.envs.rendering import DensityPlot 
+from toy_models.envs.utils import minmax 
+from toy_models.envs.reward_functions import REWARD_FUNCTIONS
 
 TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'max_steps': 200,
     'd_factor': 5,
-    'lh_factor': 5,
+    'lh_factor': 3,
     'ps_bottom': 10,
     'ps_top': 15,
     'parameters_dimension': 2,
     'observables_dimension': 1,
     'function_name': 'egg_box',
     'goal': 100,
-    'kernel_bandwidth': 0.4,
-    'density_limit': 1,
-    'kernel':  'epanechnikov',
+    'kernel_bandwidth': 0.1,
+    'density_limit': 0.3,
+    'kernel':  'gaussian',
     'norm_min': -1,
     'norm_max': 1,
     'parameter_shift_mode': False,
     'density_limit': 1.,
     'density_state': False,
-    # Implement this below
     'observables_state': False,
     'parameters_state': True,
-    'lh_function': 'distance',
+    'lh_function': 'gaussian',
+    'reward_function': 'exponential_density'
         })
-
-
 
 
 class Simulator:
@@ -190,7 +109,8 @@ class ToyFunction2d_v1(gym.Env):
         self.parameter_shift_mode = self.config.parameter_shift_mode
         self.density_limit = self.config.density_limit
         self.density_state = self.config.density_state
-        
+        self.reward_function = REWARD_FUNCTIONS[self.config.reward_function]
+
         # Include observables in the state
         self.observables_state = self.config.observables_state
         self.observables_dimension = self.config.observables_dimension
@@ -249,14 +169,7 @@ class ToyFunction2d_v1(gym.Env):
                 -np.ones(self.action_dimension).astype(np.float32),
                  np.ones(self.action_dimension).astype(np.float32)
                 )
-        state_defined = False
-        # Cases 
-        # d+p+o
-        # d+p
-        # d+o
-        # p+o
-        # p
-        # o
+
         space_low = []
         space_high = []
 
@@ -289,7 +202,7 @@ class ToyFunction2d_v1(gym.Env):
         self.terminal = False
         self.info = dict()
         self.counter = 0
-        self.density = 0
+        self.density = 0.
 
         # Sample a random starting action 
         initial_params_real = self.parameter_space.sample()
@@ -299,19 +212,9 @@ class ToyFunction2d_v1(gym.Env):
                     [self.norm_min, self.norm_max]
                     )
         
-        # Starting state: Pure parameter state
-        #self.state_real = np.hstack(initial_params_real)
-        #self.state = np.hstack(initial_params_norm)
-        # Starting with zero density
-        #if self.density_state:
-        #    self.state_real = np.hstack((initial_params_real, 0.))
-        #    self.state = np.hstack((initial_params_norm, 0.))
-        #else:
-        #    self.state_real = np.hstack((initial_params_real))
-        #    self.state = np.hstack((initial_params_norm))
        
-        self.state_real = np.array([])
-        self.state = np.array([])
+        self.state_real = np.array([]).astype(np.float32)
+        self.state = np.array([]).astype(np.float32)
         
         if self.parameters_state:
             self.state_real = np.hstack((self.state_real, initial_params_real))
@@ -322,7 +225,6 @@ class ToyFunction2d_v1(gym.Env):
             self.state_real = np.hstack((self.state_real, self.observables_current))
             self.state = np.hstack((self.state, self.observables_current))
         if self.density_state:
-            #density = self.d_factor*self.density
             self.state_real = np.hstack((self.state_real, self.density))
             self.state = np.hstack((self.state, self.density))
         # Calculate initial kernel
@@ -387,43 +289,6 @@ class ToyFunction2d_v1(gym.Env):
         density = np.exp(logprob)
         return density
 
-    def get_reward(self, parameters=None):
-        '''
-        If parameters is None returns a single reward for the current state. 
-        If parameters is not None, it must be np.ndarray with shape (n_points,2), so 
-        that it can be used externaly for plotting.
-
-        Returns:
-        -------
-        if parameters is None: Scalar reward. Else, array of reward values.
-
-        '''
-
-        reward = 0
-
-        if parameters is None:
-            lh = self.lh_factor*self.simulator.run(*self.next_params_real)
-            density = self.d_factor*self.density
-            density_tm1 = self.d_factor*self.density_tm1
-            rho = np.exp(-density)
-            #reward = lh*(rho*(1+np.sign(lh))+1-np.sign(lh))/2\
-            #        - self.density*(1+np.sign(np.log(self.density+(1-self.density_limit))))/2
-            #reward = reward[0] - (density - density_tm1)
-            reward = lh + (density_tm1 - density)
-            if self.density > self.density_limit:
-                #self.terminal = True 
-                reward += -10*self.d_factor
-        else:
-            lh = self.lh_factor*self.simulator.run(parameters[:,0], parameters[:,1])
-            densities = self.d_factor*self.predict_density(parameters)
-            rho = np.exp(-densities)
-            reward = lh*(rho*(1+np.sign(lh))+1-np.sign(lh))/2\
-                    - densities*(1+np.sign(np.log(densities+(1-self.density_limit))))/2
-
-        return reward
-
-
-            
 
 
     
@@ -446,10 +311,10 @@ class ToyFunction2d_v1(gym.Env):
         # Estimate density
         self.density_tm1 = self.density
         self.density = self.predict_density(self.next_params_real.reshape(1,2))
-
+        self.density = float(self.density[0])
         
-        self.state_real = np.array([])
-        self.state = np.array([])
+        self.state_real = np.array([]).astype(np.float32)
+        self.state = np.array([]).astype(np.float32)
         if self.parameters_state:
             self.state_real = np.hstack((self.state_real, self.next_params_real))
             self.state = np.hstack((self.state, self.next_params))
@@ -486,8 +351,9 @@ class ToyFunction2d_v1(gym.Env):
 
     def render(self, mode = 'human', video_name='test'):
         likelihood = self.simulator.run(self.x, self.y)
+        
         density = self.predict_density(self.xy)
-        reward = self.get_reward(self.xy)
+        reward = self.get_reward_plot(self.xy)
 
         if self.visualization is None:
             self.visualization = DensityPlot(
@@ -509,123 +375,33 @@ class ToyFunction2d_v1(gym.Env):
                     self.done
                     )
 
-
-# Visualization 
-
-class DensityPlot:
-    def __init__(self, 
-            x,
-            y,
-            X,
-            Y,
-            likelihood,
-            density,
-            reward,
-            mode,
-            video_name
-            ):
+    def get_reward(self) -> float:
         '''
-        Generate plots in each step for the likelihood, the estimated density
-        and the reward evolution.
+        If parameters is None returns a single reward for the current state. 
+        If parameters is not None, it must be np.ndarray with shape (n_points,2), so 
+        that it can be used externaly for plotting.
+
+        Returns:
+        -------
+        reward: float
         '''
 
-        self.mode = mode
-        self.video_name = video_name
-        self.img_list = []
-        self.fig, self.ax = plt.subplots(1,3, figsize=(20,4))
+        reward = 0
 
-        self.lh_ax = self.ax[0]
-        self.density_ax = self.ax[1]
-        self.reward_ax = self.ax[2]
-
-        self.cb1 = None
-        self.cb2 = None
-        self.cb3 = None
-
-        self.frame = 0
-        self.first_state = False
-
-        plt.tight_layout()
-              
-        plt.subplots_adjust(left=0.11, bottom=0.24, right=0.90, 
-                            top=0.90, wspace=0.4, hspace=0)
-
-        # Save generated points to use in each frame
-        self.x = x
-        self.y = y 
-        self.X = X
-        self.Y = Y
-
-        self.render_lh(likelihood)
-        self.render_density(density)
-        self.render_reward(reward)
-        
-        if self.mode == 'human':
-            plt.show(block=False)
-        
+        lh = self.simulator.run(*self.next_params_real)
+        reward = self.reward_function(
+                lh, self.lh_factor, self.density, self.d_factor
+                )
+        return reward
     
-    def render(self, likelihood, density, reward, history, done):
-        self.render_lh(likelihood, history)
-        self.render_density(density, history)
-        self.render_reward(reward, history)
-        self.frame += 1
-        
-        if self.mode == 'human': 
-            plt.pause(0.00001)
-        if self.mode == 'video':
-            img = fig2img(self.fig)
-            self.img_list.append(img)
-            if done:
-                save_mp4(self.img_list, self.video_name)
-    
-
-            
-
-    def render_lh(self, likelihood, history=None):
-        '''Plot fixed likelihood'''
-        self.lh_ax.clear()
-        if self.cb1 is not None:
-            self.cb1.remove()
-        self.lh_ax.title.set_text('Likelihood')
-        cp1 = self.lh_ax.scatter(self.X, self.Y, c=likelihood, cmap=COLORS[0])
-        divider = make_axes_locatable(self.lh_ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        self.cb1 = self.fig.colorbar(cp1, cax=cax, orientation='vertical')
- 
-        if history is not None:
-            self.lh_ax.scatter(history[:,0], history[:,1], color='orangered', s=20)
-
-    def render_density(self, density, history=None):
-        '''Plot initial density'''
-        self.density_ax.clear()
-        if self.cb2 is not None:
-            self.cb2.remove()
-        self.density_ax.title.set_text('Density')
-        cp1 = self.density_ax.scatter(self.X, self.Y, c=density, cmap=COLORS[0])
-        divider = make_axes_locatable(self.density_ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        self.cb2 = self.fig.colorbar(cp1, cax=cax, orientation='vertical')
-
-    def render_reward(self, reward, history=None):
-        '''Plot initial reward'''
-        self.reward_ax.clear()
-        if self.cb3 is not None:
-            self.cb3.remove()
-        self.reward_ax.title.set_text('Reward')
-        cp1 = self.reward_ax.scatter(self.X, self.Y, c=reward, cmap=COLORS[1])
-        divider = make_axes_locatable(self.reward_ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        self.cb3 = self.fig.colorbar(cp1, cax=cax, orientation='vertical')
-
-
-
-    def add_colorbar(self, ax, cb, plot):
-        if cb is not None:
-            cb.remove()
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        cb = self.fig.colorbar(plot, cax=cax, orientation='vertical')
-
-
-
-
+    def get_reward_plot(self, parameters: np.ndarray) -> np.ndarray:
+        '''
+        Reward function definition for plotting. Using the parameters array 
+        to calculate the reward.
+        '''
+        lh = self.lh_factor*self.simulator.run(parameters[:,0], parameters[:,1])
+        densities = self.d_factor*self.predict_density(parameters)
+        reward_array = self.reward_function(
+                lh, self.lh_factor, densities, self.d_factor
+                )
+        return reward_array
