@@ -1,6 +1,6 @@
 # toy-models environments
 
-Repository containing the toy-models environments to explore parameter spaces with Reinforcement Learning. The environment package is in the toy-models folder. 
+Repository containing the toy-models environments to explore parameter spaces with Reinforcement Learning. The environment package is in the `toy-models` folder. 
 
 ## Using Stable Baselines
 
