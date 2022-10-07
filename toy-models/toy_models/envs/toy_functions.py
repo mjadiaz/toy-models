@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.neighbors import KernelDensity
 
-from toy_models.envs.model_functions import FUNCTIONS
+from toy_models.envs.models import FUNCTIONS
 from toy_models.envs.rendering import DensityPlot 
 from toy_models.envs.utils import minmax 
 from toy_models.envs.reward_functions import REWARD_FUNCTIONS
@@ -29,12 +29,12 @@ TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'kernel_bandwidth': 0.1,
     'density_limit': 0.3,
     'kernel':  'gaussian',
-    'norm_min': -1,
-    'norm_max': 1,
-    'parameter_shift_mode': False,
+    'norm_min': -0.5,
+    'norm_max': 0.5,
+    'parameter_shift_mode': True,
     'density_limit': 1.,
     'density_state': False,
-    'observables_state': False,
+    'observables_state': True,
     'parameters_state': True,
     'lh_function': 'gaussian',
     'reward_function': 'exponential_density'
@@ -319,7 +319,7 @@ class ToyFunction2d_v1(gym.Env):
             self.state_real = np.hstack((self.state_real, self.next_params_real))
             self.state = np.hstack((self.state, self.next_params))
         if self.observables_state:
-            lh = self.lh_factor*self.simulator.run(*self.next_params_real)
+            lh = self.simulator.run(*self.next_params_real)
             self.observables_current = np.array([lh]).flatten()
             self.state_real = np.hstack((self.state_real, self.observables_current))
             self.state = np.hstack((self.state, self.observables_current))
