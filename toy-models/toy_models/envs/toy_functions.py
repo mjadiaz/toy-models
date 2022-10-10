@@ -26,7 +26,7 @@ TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'observables_dimension': 1,
     'function_name': 'egg_box',
     'goal': 100,
-    'kernel_bandwidth': 0.1,
+    'kernel_bandwidth': 0.3,
     'density_limit': 0.3,
     'kernel':  'gaussian',
     'norm_min': -0.5,
@@ -34,10 +34,10 @@ TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'parameter_shift_mode': True,
     'density_limit': 1.,
     'density_state': False,
-    'observables_state': True,
+    'observables_state': False,
     'parameters_state': True,
     'lh_function': 'gaussian',
-    'reward_function': 'exponential_density'
+    'reward_function': 'density_difference'
         })
 
 
@@ -154,7 +154,7 @@ class ToyFunction2d_v1(gym.Env):
             self.y.reshape(len(self.y),1)])
         # Initialize kernel for density estimation
         self.kernel = KernelDensity(
-                bandwidth=self.config.kernel_bandwidth, 
+                bandwidth=self.config.kernel_bandwidth,
                 kernel=self.config.kernel
                 )
 
@@ -271,6 +271,7 @@ class ToyFunction2d_v1(gym.Env):
         Fit the kernel to the collected states acording to the counter.
         '''
         data = self.params_history_real[:self.counter+1]
+        self.kernel_tm1 = self.kernel
         self.kernel.fit(data)
 
     def predict_density(self, x: np.ndarray):
@@ -390,7 +391,7 @@ class ToyFunction2d_v1(gym.Env):
 
         lh = self.simulator.run(*self.next_params_real)
         reward = self.reward_function(
-                lh, self.lh_factor, self.density, self.d_factor
+                lh, self.lh_factor, self.density_tm1, self.density, self.d_factor
                 )
         return reward
     
@@ -400,8 +401,10 @@ class ToyFunction2d_v1(gym.Env):
         to calculate the reward.
         '''
         lh = self.lh_factor*self.simulator.run(parameters[:,0], parameters[:,1])
+        logprob_tm1 = self.kernel_tm1.score_samples(parameters)
+        densities_tm1 = self.d_factor*np.exp(logprob_tm1)
         densities = self.d_factor*self.predict_density(parameters)
         reward_array = self.reward_function(
-                lh, self.lh_factor, densities, self.d_factor
+                lh, self.lh_factor, densities_tm1, densities, self.d_factor
                 )
         return reward_array

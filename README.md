@@ -10,3 +10,11 @@ To install it follow the [installation guide](https://stable-baselines3.readthed
 
 - `pip install stable-baselines3`
 
+### Learning RL
+
+- [Spinning Up RL from Open AI](https://spinningup.openai.com/en/latest/spinningup/rl_intro.html): Key information about the algorithms and core concepts about Reinforcement Learning.
+- [Stable Baselines](https://stable-baselines.readthedocs.io/en/master/): The base library we use in this repo to test the different algorithms.
+- [Grokking Deep Reinforcement Learning, Miguel Morales](https://www.oreilly.com/library/view/grokking-deep-reinforcement/9781617295454/)
+
+
+
