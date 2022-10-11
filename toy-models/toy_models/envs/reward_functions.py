@@ -19,8 +19,8 @@ def density_difference(
         lh, lh_factor, d_tm1, d_t, d_factor 
         ) -> float:
     likelihood = lh*lh_factor 
-    delta_density = d_tm1 - d_t
-    reward = likelihood + d_factor*delta_density
+    delta_density = d_tm1 - d_factor*d_t
+    reward = likelihood*delta_density
     return reward
 
 

@@ -37,7 +37,7 @@ TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'observables_state': False,
     'parameters_state': True,
     'lh_function': 'gaussian',
-    'reward_function': 'density_difference'
+    'reward_function': 'exponential_density'
         })
 
 
@@ -391,7 +391,7 @@ class ToyFunction2d_v1(gym.Env):
 
         lh = self.simulator.run(*self.next_params_real)
         reward = self.reward_function(
-                lh, self.lh_factor, self.density_tm1, self.density, self.d_factor
+                lh, self.lh_factor, self.density, self.d_factor
                 )
         return reward
     
@@ -400,11 +400,11 @@ class ToyFunction2d_v1(gym.Env):
         Reward function definition for plotting. Using the parameters array 
         to calculate the reward.
         '''
-        lh = self.lh_factor*self.simulator.run(parameters[:,0], parameters[:,1])
-        logprob_tm1 = self.kernel_tm1.score_samples(parameters)
-        densities_tm1 = self.d_factor*np.exp(logprob_tm1)
-        densities = self.d_factor*self.predict_density(parameters)
+        lh = self.simulator.run(parameters[:,0], parameters[:,1])
+        #logprob_tm1 = self.kernel_tm1.score_samples(parameters)
+        #densities_tm1 = np.exp(logprob_tm1)
+        densities = self.predict_density(parameters)
         reward_array = self.reward_function(
-                lh, self.lh_factor, densities_tm1, densities, self.d_factor
+                lh, self.lh_factor, densities, self.d_factor
                 )
         return reward_array
