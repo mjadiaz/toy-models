@@ -14,8 +14,8 @@ from sklearn.neighbors import KernelDensity
 
 from bsm_models.envs.models import MODELS 
 from bsm_models.envs.likelihoods import LIKELIHOODS 
-from bsm_models.envs.rendering import DensityPlot 
-from bsm_models.envs.utils import minmax 
+#from bsm_models.envs.rendering import DensityPlot 
+from bsm_models.envs.utils import minmax_vector 
 from bsm_models.envs.reward_functions import REWARD_FUNCTIONS
 
 
@@ -30,15 +30,16 @@ PHENOENV_DEFAULT_CONFIG = OmegaConf.create({
     'kernel_bandwidth': 0.3,
     'density_limit': 0.3,
     'kernel':  'gaussian',
-    'norm_min': -0.5,
-    'norm_max': 0.5,
+    'norm_min': -1,
+    'norm_max': 1,
     'parameter_shift_mode': True,
     'density_limit': 1.,
     'density_state': False,
     'observables_state': False,
     'parameters_state': True,
     'reward_function': 'exponential_density',
-    'simulator_name': 'SPhenoHbHs'
+    'simulator_name': 'SPhenoHbHs',
+    'training': True
         })
 
 HEP_DEFAULT_CONFIG = OmegaConf.create(
@@ -58,12 +59,12 @@ HEP_DEFAULT_CONFIG = OmegaConf.create(
             name:      ['Mh(1)', 'Mh(2)', 'obsratio', 'csq(tot)']
         goal:
             name:      ['Mh(1)', 'Mh2(2)', 'obsratio', 'csq(tot)']
-            value:     [    93.,     125.,         0.,       0.]
+            value:     [    93.,     125.,         1.,       0.]
             lh_type:   ['gaussian', 'gaussian', 'heaviside', heaviside]
     directories:
         scan_dir: '/mainfs/scratch/mjad1g20/test_env'
         reference_lhs: '/scratch/mjad1g20/rlhep/runs/ddpg_tests/SPhenoBLSSM_input/LesHouches.in.Step'
-        spheno: '/scratch/mjad1g20/HEP/SPHENO/SPheno-3.3.8'
+        spheno: '/home/mjad1g20/HEP/SPHENO/SPheno-3.3.8'
         higgsbounds: '/scratch/mjad1g20/HEP/higgsbounds-5.10.1/build'
         madgraph: '/scratch/mjad1g20/HEP/MG5_aMC_v3_1_1'
         higgssignals: '/scratch/mjad1g20/HEP/higgssignals-2.6.2/build'
@@ -75,10 +76,10 @@ def id_generator(size=7, chars=string.ascii_lowercase + string.digits):
 
 class Simulator:
     def __init__(self, config, hep_config):
-        self.name = self.config.simulator_name
+        self.name = config.simulator_name
 
-        self.goal_value = self.hep_config.model.goal.value
-        self.lh_type = self.hep_config.model.goal.lh_type
+        self.goal_value = hep_config.model.goal.value
+        self.lh_type = hep_config.model.goal.lh_type
         
 
         self.random_id = id_generator()
@@ -93,7 +94,10 @@ class Simulator:
         return likelihood_total
 
     def likelihood(self, observables_array: np.ndarray):
-        return self.higgs_masses_likelihood(observables_array)
+        if None in observables_array:
+            return None
+        else:
+            return self.higgs_masses_likelihood(observables_array)
     
     def run(self, observables_array: np.ndarray):
         obs = self.model(observables_array)
@@ -120,6 +124,7 @@ class PhenoEnv_v3(gym.Env):
         self.density_limit = self.config.density_limit
         self.density_state = self.config.density_state
         self.reward_function = REWARD_FUNCTIONS[self.config.reward_function]
+        self.training = self.config.training
 
         # Include observables in the state
         self.observables_state = self.config.observables_state
@@ -176,8 +181,8 @@ class PhenoEnv_v3(gym.Env):
 
         ## Normalized action space
         self.action_space = spaces.Box(
-                -np.ones(self.action_dimension).astype(np.float32),
-                 np.ones(self.action_dimension).astype(np.float32)
+                -self.norm_min*np.ones(self.action_dimension).astype(np.float32),
+                 self.norm_max*np.ones(self.action_dimension).astype(np.float32)
                 )
 
         space_low = []
@@ -206,7 +211,9 @@ class PhenoEnv_v3(gym.Env):
 
     def reset(self):
         self.params_history = np.zeros((self.max_steps, self.n_parameters))
-        self.params_history_real = np.zeros((self.max_steps, self.n_parameters))
+        self.params_history_real = np.zeros(
+                (self.max_steps, self.n_parameters)
+                )
         self.reward = 0
         self.done = False
         self.terminal = False
@@ -216,10 +223,12 @@ class PhenoEnv_v3(gym.Env):
 
         # Sample a random starting action 
         initial_params_real = self.parameter_space.sample()
-        initial_params_norm = minmax(
+        initial_params_norm = minmax_vector(
                     initial_params_real, 
-                    [self.ps_bottom, self.ps_top],
-                    [self.norm_min, self.norm_max]
+                    np.array(self.ps_bottom),
+                    np.array(self.ps_top),
+                    np.array([self.norm_min]*self.parameters_dimension),
+                    np.array([self.norm_max]*self.parameters_dimension),
                     )
         
        
@@ -238,8 +247,8 @@ class PhenoEnv_v3(gym.Env):
             self.state_real = np.hstack((self.state_real, self.density))
             self.state = np.hstack((self.state, self.density))
         # Calculate initial kernel
-        self.kernel.fit(initial_params_norm.reshape(1,2))
-
+        self.kernel.fit(initial_params_norm.reshape(1,self.action_dimension))
+        print(self.state)
         return self.state
     
     def parameter_shift(self, action):
@@ -256,22 +265,26 @@ class PhenoEnv_v3(gym.Env):
         next_params_real
         '''
         
-        next_params = self.state[:2] + action
+        next_params = self.state[:self.action_dimension] + action
         next_params = np.clip(next_params,self.norm_min,self.norm_max)
-        next_params_real = minmax(
+        next_params_real = minmax_vector(
                 next_params,
-                [self.ps_bottom, self.ps_top],
-                [self.norm_min,self.norm_max],
+                np.array(self.ps_bottom),
+                np.array(self.ps_top),
+                np.array([self.norm_min]*self.parameters_dimension),
+                np.array([self.norm_max]*self.parameters_dimension),
                 reverse=True
                 )
         return next_params, next_params_real
 
     def direct_action(self, action):
         next_params = action
-        next_params_real = minmax(
+        next_params_real = minmax_vector(
                 next_params,
-                [self.ps_bottom, self.ps_top],
-                [self.norm_min,self.norm_max],
+                np.array(self.ps_bottom),
+                np.array(self.ps_top),
+                np.array([self.norm_min]*self.parameters_dimension),
+                np.array([self.norm_max]*self.parameters_dimension),
                 reverse=True
                 )
         return next_params, next_params_real
@@ -321,7 +334,7 @@ class PhenoEnv_v3(gym.Env):
         self.params_history_real[self.counter] = self.next_params_real
         # Estimate density
         self.density_tm1 = self.density
-        self.density = self.predict_density(self.next_params_real.reshape(1,2))
+        self.density = self.predict_density(self.next_params_real.reshape(1,self.action_dimension))
         self.density = float(self.density[0])
         
         self.state_real = np.array([]).astype(np.float32)
@@ -339,10 +352,13 @@ class PhenoEnv_v3(gym.Env):
             self.state = np.hstack((self.state, self.density))
 
         # Get Reward
-        self.reward = self.get_reward()
+        if self.training:
+            self.reward = self.get_reward()
+            # Fit kernel
+            self.fit_kernel()
+        else:
+            self.reward = 0.0
          
-        # Fit kernel
-        self.fit_kernel()
         
         self.counter += 1
 
@@ -352,7 +368,7 @@ class PhenoEnv_v3(gym.Env):
             self.done = True
 
         if self.done:
-            self.model.close()
+            self.simulator.model.close()
 
         return [self.state, self.reward, self.done, self.info]
 
@@ -361,7 +377,7 @@ class PhenoEnv_v3(gym.Env):
         return [seed]
     
     def close(self):
-        self.model.close()
+        self.simulator.model.close()
 
     def render(self, mode = 'rgb'):
         pass
@@ -379,22 +395,26 @@ class PhenoEnv_v3(gym.Env):
 
         reward = 0
 
-        lh = self.simulator.run(*self.next_params_real)
-        reward = self.reward_function(
-                lh, self.lh_factor, self.density, self.d_factor
-                )
+        lh = self.simulator.run(self.state_real)
+        if lh is not None:
+            reward = self.reward_function(
+                    lh, self.lh_factor, self.density, self.d_factor
+                    )
+        else:
+            reward = -10
+            self.terminal = True
         return reward
     
-    def get_reward_plot(self, parameters: np.ndarray) -> np.ndarray:
-        '''
-        Reward function definition for plotting. Using the parameters array 
-        to calculate the reward.
-        '''
-        lh = self.simulator.run(parameters[:,0], parameters[:,1])
-        #logprob_tm1 = self.kernel_tm1.score_samples(parameters)
-        #densities_tm1 = np.exp(logprob_tm1)
-        densities = self.predict_density(parameters)
-        reward_array = self.reward_function(
-                lh, self.lh_factor, densities, self.d_factor
-                )
-        return reward_array
+    #def get_reward_plot(self, parameters: np.ndarray) -> np.ndarray:
+    #    '''
+    #    Reward function definition for plotting. Using the parameters array 
+    #    to calculate the reward.
+    #    '''
+    #    lh = self.simulator.run(parameters[:,0], parameters[:,1])
+    #    #logprob_tm1 = self.kernel_tm1.score_samples(parameters)
+    #    #densities_tm1 = np.exp(logprob_tm1)
+    #    densities = self.predict_density(parameters)
+    #    reward_array = self.reward_function(
+    #            lh, self.lh_factor, densities, self.d_factor
+    #            )
+    #    return reward_array

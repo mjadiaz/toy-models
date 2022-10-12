@@ -7,6 +7,6 @@ dependencies = [
     'jupyterthemes',
     'scikit-learn',
 	'imageio',
-	'omegaconf'
+	'omegaconf',
 ]
 

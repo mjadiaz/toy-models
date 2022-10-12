@@ -9,6 +9,7 @@ def register(func: Callable[..., Any]) -> Callable[..., Any]:
 
 @register
 def gaussian(variable, goal, sigma=10):
+    print(variable, goal)
     lh = np.exp(- (variable-goal)**2/(2*sigma**2))
     return lh
 @register
