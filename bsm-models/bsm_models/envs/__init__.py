@@ -1,1 +1,1 @@
-from toy_models.envs.toy_functions import ToyFunction2d_v1
+from bsm_models.envs.bsm_environment import PhenoEnv_v3 
