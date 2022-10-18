@@ -220,7 +220,7 @@ class ToyFunction2d_v1(gym.Env):
             self.state_real = np.hstack((self.state_real, initial_params_real))
             self.state = np.hstack((self.state, initial_params_norm))
         if self.observables_state:
-            lh = self.lh_factor*self.simulator.run(*initial_params_real)
+            lh = self.simulator.run(*initial_params_real)
             self.observables_current = np.array([lh]).flatten()
             self.state_real = np.hstack((self.state_real, self.observables_current))
             self.state = np.hstack((self.state, self.observables_current))
