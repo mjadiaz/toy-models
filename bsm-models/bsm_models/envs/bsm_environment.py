@@ -59,13 +59,13 @@ HEP_DEFAULT_CONFIG = OmegaConf.create(
             name:      ['Mh(1)', 'Mh(2)', 'obsratio', 'csq(tot)']
         goal:
             name:      ['Mh(1)', 'Mh2(2)', 'obsratio', 'csq(tot)']
-            value:     [    93.,     125.,         1.,       0.]
+            value:     [    93.,     125.,         1.,       130.]
             lh_type:   ['gaussian', 'gaussian', 'heaviside', heaviside]
     directories:
         scan_dir: '/mainfs/scratch/mjad1g20/test_env'
         reference_lhs: '/scratch/mjad1g20/rlhep/runs/ddpg_tests/SPhenoBLSSM_input/LesHouches.in.Step'
         spheno: '/home/mjad1g20/HEP/SPHENO/SPheno-3.3.8'
-        higgsbounds: '/scratch/mjad1g20/HEP/higgsbounds-5.10.1/build'
+        higgsbounds: '/scratch/mjad1g20/HEP/higgsbounds-5.10.2/build'
         madgraph: '/scratch/mjad1g20/HEP/MG5_aMC_v3_1_1'
         higgssignals: '/scratch/mjad1g20/HEP/higgssignals-2.6.2/build'
     """)

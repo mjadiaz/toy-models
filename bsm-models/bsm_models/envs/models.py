@@ -70,12 +70,12 @@ class SPhenoHbHs:
             neutral_higgs = self.hp.model.neutral_higgs,
             charged_higgs = self.hp.model.charged_higgs,
             )
-        #self.higgs_signals = HiggsSignals(
-        #    higgs_signals_dir = self.hp.directories.higgssignals,
-        #    work_dir = self.sampler_id_dir,
-        #    neutral_higgs = self.hp.model.neutral_higgs,
-        #    charged_higgs = self.hp.model.charged_higgs,
-        #    )
+        self.higgs_signals = HiggsSignals(
+            higgs_signals_dir = self.hp.directories.higgssignals,
+            work_dir = self.sampler_id_dir,
+            neutral_higgs = self.hp.model.neutral_higgs,
+            charged_higgs = self.hp.model.charged_higgs,
+            )
         if lhs is None:
             self.lhs = LesHouches(
         	    file_dir = self.hp.directories.reference_lhs,
@@ -118,11 +118,11 @@ class SPhenoHbHs:
             )
         if param_card is not None:
             self.higgs_bounds.run()
-            #self.higgs_signals.run()
-            #higgs_signals_results = HiggsSignalsResults(
-            #    self.sampler_id_dir,
-            #    model = self.hp.model.name
-            #    ).read()
+            self.higgs_signals.run()
+            higgs_signals_results = HiggsSignalsResults(
+                self.sampler_id_dir,
+                model = self.hp.model.name
+                ).read()
             higgs_bounds_results = HiggsBoundsResults(
                 self.sampler_id_dir,
                 model=self.hp.model.name
