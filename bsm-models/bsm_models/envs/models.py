@@ -127,7 +127,7 @@ class SPhenoHbHs:
                 self.sampler_id_dir,
                 model=self.hp.model.name
                 ).read()
-            print(param_card)
+            print('param_card:', param_card)
             read_param_card = SLHA(
                 param_card,
                 self.sampler_id_dir,
@@ -140,8 +140,8 @@ class SPhenoHbHs:
             if param_card is not None:
                 if obs_name in higgs_bounds_results.keys():
                     value = float(higgs_bounds_results[obs_name])
-                #if obs_name in higgs_signals_results.keys():
-                #    value = float(higgs_signals_results[obs_name])
+                if obs_name in higgs_signals_results.keys():
+                    value = float(higgs_signals_results[obs_name])
                 observations[obs_name] = value
             else:
                 observations[obs_name] = None

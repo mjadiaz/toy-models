@@ -11,12 +11,11 @@ hep_config.directories.reference_lhs = "/home/mjad1g20/HEP/SPHENO/modelfiles/Les
 
 env = gym.make('PhenoEnv-v3', hep_config=hep_config)
 # It will check your custom environment and output additional warnings if needed
-#check_env(env)
+check_env(env)
 state = env.reset()
-print(state)
+print('ttype state: ', type(state), state)
+print('type space: ', type(env.observation_space.sample()), env.observation_space.sample())
+
 #
-ns, r, done, info = env.step(env.action_space.sample())
+#ns, r, done, info = env.step(env.action_space.sample())
 #
-##ns, r, done, info = env.step(env.action_space.sample())
-print(ns)
-print(r)

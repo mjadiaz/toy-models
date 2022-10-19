@@ -247,8 +247,9 @@ class PhenoEnv_v3(gym.Env):
             self.state_real = np.hstack((self.state_real, self.density))
             self.state = np.hstack((self.state, self.density))
         # Calculate initial kernel
+        self.state = self.state.astype(np.float32)
+        self.state_real = self.state_real.astype(np.float32)
         self.kernel.fit(initial_params_norm.reshape(1,self.action_dimension))
-        print(self.state)
         return self.state
     
     def parameter_shift(self, action):
