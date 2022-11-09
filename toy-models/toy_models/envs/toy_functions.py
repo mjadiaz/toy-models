@@ -31,7 +31,7 @@ TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'kernel':  'gaussian',
     'norm_min': -0.5,
     'norm_max': 0.5,
-    'parameter_shift_mode': True,
+    'parameter_shift_mode': False,
     'density_limit': 1.,
     'density_state': False,
     'observables_state': False,

@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw
 
 from train_sb3 import alg_name, env_config, env
 from stable_baselines3 import DDPG
+import pathlib
 
 def fig2img(fig):
     """Convert a Matplotlib figure to a PIL Image and return it"""
@@ -24,9 +25,18 @@ def fig2img(fig):
 def NormalizeData(data):
     return (data - np.min(data)) / (np.max(data) - np.min(data))
 
-model_name = st.sidebar.text_input('Trained model name: ')
-st.sidebar.write('Displaying ', model_name)
-model = DDPG.load("test/"+model_name)
+d = pathlib.Path("test/")
+# iterate directory
+res = []
+for entry in d.iterdir():
+    # check if it a file
+    if entry.is_file():
+        res.append(entry)
+selection = st.sidebar.selectbox("Select", res)
+st.sidebar.write('Displaying ', selection)
+model = DDPG.load(selection)
+
+
 
 critic = model.critic
 actor = model.policy
