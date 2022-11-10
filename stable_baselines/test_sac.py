@@ -1,12 +1,16 @@
+import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+
 import gym
 import toy_models
 
-from stable_baselines3 import SAC
+from stable_baselines3 import DDPG
+from sac_sb3 import env_config
 
-env = gym.make("ToyFunction2d-v1")
+env = gym.make("ToyFunction2d-v1", env_config = env_config)
 
 
-model = SAC.load("models/sac")
+model = DDPG.load("test/DDPG")
 
 obs = env.reset()
 for i in range(500):
