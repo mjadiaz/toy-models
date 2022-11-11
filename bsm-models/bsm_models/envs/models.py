@@ -150,7 +150,7 @@ class SPhenoHbHs:
         return params_obs
     
     def sample_as_numpy(self, parameter_point: np.ndarray) -> np.ndarray:
-    
+        print(parameter_point)
         params_obs = self.sample(parameter_point)
         
         observable_name = self.hp.model.observation.name

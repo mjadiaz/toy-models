@@ -37,7 +37,7 @@ PHENOENV_DEFAULT_CONFIG = OmegaConf.create({
     'density_state': False,
     'observables_state': False,
     'parameters_state': True,
-    'reward_function': 'exponential_density',
+    'reward_function': 'density_difference',
     'simulator_name': 'SPhenoHbHs',
     'training': True
         })
@@ -59,8 +59,9 @@ HEP_DEFAULT_CONFIG = OmegaConf.create(
             name:      ['Mh(1)', 'Mh(2)', 'obsratio', 'csq(tot)']
         goal:
             name:      ['Mh(1)', 'Mh2(2)', 'obsratio', 'csq(tot)']
-            value:     [    93.,     125.,         1.,       130.]
-            lh_type:   ['gaussian', 'gaussian', 'heaviside', heaviside]
+            value:     [    93.,     125.,         3.,       180.]
+            lh_type:   ['log', 'log', 'sigmoid', 'sigmoid']
+            lh_hp:     [10, 10, 0.3, 14]
     directories:
         scan_dir: '/mainfs/scratch/mjad1g20/test_env'
         reference_lhs: '/scratch/mjad1g20/rlhep/runs/ddpg_tests/SPhenoBLSSM_input/LesHouches.in.Step'
@@ -80,6 +81,7 @@ class Simulator:
 
         self.goal_value = hep_config.model.goal.value
         self.lh_type = hep_config.model.goal.lh_type
+        self.lh_hp = hep_config.model.goal.lh_hp
         
 
         self.random_id = id_generator()
@@ -87,10 +89,10 @@ class Simulator:
         self.lh_functions = LIKELIHOODS
 
     def higgs_masses_likelihood(self, observables_array: np.ndarray) -> float:
-        likelihood_total = 1
-        goal_iter = zip(observables_array, self.goal_value, self.lh_type)
-        for obs_value, goal_value, lh_type in goal_iter:
-            likelihood_total *= self.lh_functions[lh_type](obs_value, goal_value)
+        likelihood_total = 0
+        goal_iter = zip(observables_array, self.goal_value, self.lh_type, self.lh_hp)
+        for obs_value, goal_value, lh_type, lh_hp in goal_iter:
+            likelihood_total += self.lh_functions[lh_type](obs_value, goal_value, width=lh_hp)
         return likelihood_total
 
     def likelihood(self, observables_array: np.ndarray):
@@ -181,7 +183,7 @@ class PhenoEnv_v3(gym.Env):
 
         ## Normalized action space
         self.action_space = spaces.Box(
-                -self.norm_min*np.ones(self.action_dimension).astype(np.float32),
+                self.norm_min*np.ones(self.action_dimension).astype(np.float32),
                  self.norm_max*np.ones(self.action_dimension).astype(np.float32)
                 )
 
@@ -250,6 +252,7 @@ class PhenoEnv_v3(gym.Env):
         self.state = self.state.astype(np.float32)
         self.state_real = self.state_real.astype(np.float32)
         self.kernel.fit(initial_params_norm.reshape(1,self.action_dimension))
+        print('finish reset')
         return self.state
     
     def parameter_shift(self, action):
@@ -355,11 +358,12 @@ class PhenoEnv_v3(gym.Env):
         # Get Reward
         if self.training:
             self.reward = self.get_reward()
-            # Fit kernel
-            self.fit_kernel()
         else:
             self.reward = 0.0
          
+        # Fit kernel
+        if not self.terminal:
+            self.fit_kernel()
         
         self.counter += 1
 
@@ -399,11 +403,11 @@ class PhenoEnv_v3(gym.Env):
         lh = self.simulator.run(self.state_real)
         if lh is not None:
             reward = self.reward_function(
-                    lh, self.lh_factor, self.density, self.d_factor
+                    lh, self.lh_factor,self.density_tm1, self.density, self.d_factor
                     )
         else:
             reward = -10
-            self.terminal = True
+            self.info["Physical"] = False
         return reward
     
     #def get_reward_plot(self, parameters: np.ndarray) -> np.ndarray:
