@@ -1,0 +1,6 @@
+gym
+matplotlib
+jupyterthemes
+scikit-learn
+imageio
+omegaconf

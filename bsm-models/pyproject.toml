@@ -1,0 +1,12 @@
+[project]
+name = "bsm_models"
+version = "0.0.1"
+dependencies = [
+    'gym',
+    'matplotlib',
+    'jupyterthemes',
+    'scikit-learn',
+	'imageio',
+	'omegaconf',
+]
+
