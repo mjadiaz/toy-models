@@ -20,11 +20,25 @@ def new_run(
         env_name: str,
         total_timesteps: int, 
         env_config: DictConfig = None, 
-        continue_training: bool = False
+        load_agent_path: str = None 
         ):
+    '''
+    Run function to control the agent training. The idea is to modify the 
+    run_name argument for each run, to save the checkpoints in different
+    folders.
+
+    Args:
+    -----
+    run_name: str = Name for the folder containing logs and checkpoints.
+    env_name: str = Name for the environment.
+    total_timesteps: int = Total training steps.
+    env_config: DictConfig = Config for the environment
+    load_agent_path: str = Path for the trained agent. If none generates 
+                           a new run. The run_name should match.
+    '''
 
     final_model_name = "./logs/"+run_name+"/final"
-    CONTINUE_TRAINING = continue_training 
+    load_agent = False if load_agent_path is None else True 
 
     # Initiate env
     env = gym.make(env_name, env_config=env_config)
@@ -41,8 +55,8 @@ def new_run(
     action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.25 * np.ones(n_actions))
     
     # Initiate the model
-    if CONTINUE_TRAINING:
-        model = TD3.load(final_model_name)
+    if load_agent:
+        model = TD3.load(load_agent_path)
         model.set_env(env)
     else:
         model = TD3(
