@@ -15,24 +15,24 @@ from toy_models.envs.models import FUNCTIONS
 from toy_models.envs.rendering import DensityPlot 
 from toy_models.envs.utils import minmax 
 from toy_models.envs.reward_functions import REWARD_FUNCTIONS
+from toy_models.envs.likelihoods import LIKELIHOODS
 
 TF2D_DEFAULT_CONFIG = OmegaConf.create({
     'max_steps': 200,
-    'd_factor': 5,
-    'lh_factor': 3,
+    'd_factor': 1,
+    'lh_factor': 1,
     'ps_bottom': 10,
     'ps_top': 15,
     'parameters_dimension': 2,
     'observables_dimension': 1,
     'function_name': 'egg_box',
     'goal': 100,
-    'kernel_bandwidth': 0.3,
-    'density_limit': 0.3,
+    'kernel_bandwidth': 0.2,
+    'density_limit': 0.8,
     'kernel':  'gaussian',
-    'norm_min': -0.5,
-    'norm_max': 0.5,
-    'parameter_shift_mode': True,
-    'density_limit': 1.,
+    'norm_min': -1.,
+    'norm_max': 1.,
+    'parameter_shift_mode': False,
     'density_state': False,
     'observables_state': False,
     'parameters_state': True,
@@ -51,7 +51,8 @@ class Simulator:
         self.top = self.config.ps_top
         self.norm_min = self.config.norm_min
         self.norm_max = self.config.norm_max
-        self.lh_function = self.config.lh_function
+        self.lh_functions = LIKELIHOODS
+        self.lh_name = self.config.lh_function
         
     
     def distance_likelihood(self,variable, maximum=1,acceptance=20):
@@ -64,10 +65,11 @@ class Simulator:
         return lh
 
     def likelihood(self, variable):
-        if self.lh_function == 'gaussian':
-            return self.gaussian_likelihood(variable)
-        if self.lh_function == 'distance':
-            return self.distance_likelihood(variable)
+        #if self.lh_function == 'gaussian':
+        #    return self.gaussian_likelihood(variable)
+        #if self.lh_function == 'distance':
+        #    return self.distance_likelihood(variable)
+        return  self.lh_functions[self.lh_name](variable, self.goal)
     
     def run(self, x1, x2):
         obs = self.function(x1,x2)
@@ -104,6 +106,7 @@ class ToyFunction2d_v1(gym.Env):
         self.max_steps = self.config.max_steps
         self.d_factor = self.config.d_factor
         self.lh_factor = self.config.lh_factor
+
         self.norm_min = self.config.norm_min
         self.norm_max = self.config.norm_max
         self.parameter_shift_mode = self.config.parameter_shift_mode
@@ -197,7 +200,7 @@ class ToyFunction2d_v1(gym.Env):
     def reset(self):
         self.params_history = np.zeros((self.max_steps, self.n_parameters))
         self.params_history_real = np.zeros((self.max_steps, self.n_parameters))
-        self.reward = 0
+        self.reward = -self.lh_factor
         self.done = False
         self.terminal = False
         self.info = dict()
@@ -313,7 +316,7 @@ class ToyFunction2d_v1(gym.Env):
         self.density_tm1 = self.density
         self.density = self.predict_density(self.next_params_real.reshape(1,2))
         self.density = float(self.density[0])
-        
+
         self.state_real = np.array([]).astype(np.float32)
         self.state = np.array([]).astype(np.float32)
         if self.parameters_state:
@@ -329,8 +332,12 @@ class ToyFunction2d_v1(gym.Env):
             self.state = np.hstack((self.state, self.density))
 
         # Get Reward
+        #self.reward_tm1 = self.reward
+        #self.reward_t = self.get_reward()
+        #self.reward = self.reward_t - self.reward_tm1
+
         self.reward = self.get_reward()
-         
+
         # Fit kernel
         self.fit_kernel()
         
@@ -388,11 +395,18 @@ class ToyFunction2d_v1(gym.Env):
         '''
 
         reward = 0
-
-        lh = self.simulator.run(*self.next_params_real)
+        
+        self.lh = self.simulator.run(*self.next_params_real)
+        #reward = self.reward_function(
+        #        lh, self.lh_factor, self.density_tm1, self.density, self.d_factor
+        #        )
         reward = self.reward_function(
-                lh, self.lh_factor, self.density, self.d_factor
+                self.lh, self.lh_factor, self.density, self.d_factor
                 )
+        #if self.density >= self.density_limit:
+        #    reward += -self.lh_factor
+        #    self.terminal = True
+
         return reward
     
     def get_reward_plot(self, parameters: np.ndarray) -> np.ndarray:
@@ -401,8 +415,8 @@ class ToyFunction2d_v1(gym.Env):
         to calculate the reward.
         '''
         lh = self.simulator.run(parameters[:,0], parameters[:,1])
-        #logprob_tm1 = self.kernel_tm1.score_samples(parameters)
-        #densities_tm1 = np.exp(logprob_tm1)
+        logprob_tm1 = self.kernel_tm1.score_samples(parameters)
+        densities_tm1 = np.exp(logprob_tm1)
         densities = self.predict_density(parameters)
         reward_array = self.reward_function(
                 lh, self.lh_factor, densities, self.d_factor

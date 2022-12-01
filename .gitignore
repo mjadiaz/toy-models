@@ -3,3 +3,5 @@ toy-models/toy_models/__pycache__/
 toy-models/toy_models/envs/__pycache__/
 notebooks/.ipynb_checkpoints/
 .DS_Store
+stable_baselines/wandb
+stable_baselines/.ipynb_checkpoints/
