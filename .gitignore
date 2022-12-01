@@ -5,3 +5,7 @@ notebooks/.ipynb_checkpoints/
 .DS_Store
 stable_baselines/wandb
 stable_baselines/.ipynb_checkpoints/
+
+bsm-models/bms_models.egg-info
+bsm-models/bsm_models/__pycache__/
+bsm-models/bsm_models/envs/__pycache__/
