@@ -1,5 +1,8 @@
 from toy_models.envs.toy_functions import TF2D_DEFAULT_CONFIG
 from scripts.train_utils import new_run
+import os
+
+wandb_key = os.environ.get('WANDB_KEY')
 
 
 run_name = 'test' 
@@ -15,7 +18,8 @@ env_config.density_limit = 0.6
 new_run(
     run_name,
     env_name,
-    total_timesteps=20_000,
+    total_timesteps=2000,
     env_config = env_config,
-    continue_training=False
+    cluster_mode = True,
+    wandb_key = wandb_key,
     )

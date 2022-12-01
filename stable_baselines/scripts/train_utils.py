@@ -15,12 +15,15 @@ from wandb.integration.sb3 import WandbCallback
 from omegaconf import DictConfig
 
 
+
 def new_run(
         run_name: str, 
         env_name: str,
         total_timesteps: int, 
         env_config: DictConfig = None, 
-        load_agent_path: str = None 
+        load_agent_path: str = None, 
+        cluster_mode: bool = False,
+        wandb_key: str = None,
         ):
     '''
     Run function to control the agent training. The idea is to modify the 
@@ -35,6 +38,8 @@ def new_run(
     env_config: DictConfig = Config for the environment
     load_agent_path: str = Path for the trained agent. If none generates 
                            a new run. The run_name should match.
+    cluster_mode: bool = If running in the cluster to register offline and then sync.
+    wandb_key: str = Key for wandb login.
     '''
 
     final_model_name = "./logs/"+run_name+"/final"
@@ -44,6 +49,10 @@ def new_run(
     env = gym.make(env_name, env_config=env_config)
 
     # Initiate wandb
+    if cluster_mode:
+        os.environ["WANDB_API_KEY"] = wandb_key 
+        os.environ["WANDB_MODE"] = "offline"
+
     run = wandb.init(
         project="sb3",
         config=dict(env_config),
