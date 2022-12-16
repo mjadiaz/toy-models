@@ -99,6 +99,8 @@ with tab4:
     ax.set_xlim([-1.05, 1.05])
 
     st.pyplot(fig)
+    st.balloons()
+
 
 with tab1:
 
