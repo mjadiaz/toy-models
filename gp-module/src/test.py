@@ -72,6 +72,7 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
     ax.flatten()
     # Get upper and lower confidence bounds
     lower, upper = observed_pred.confidence_region()
+    breakpoint()
     # Plot training data as black stars
     #ax.plot(train_x.numpy(), train_y.numpy(), 'k*')
     # Plot predictive means as blue line
