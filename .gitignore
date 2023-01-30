@@ -16,3 +16,5 @@ bsm-models/bsm_models/__pycache__/
 bsm-models/bsm_models/envs/__pycache__/
 
 gp-module/src/__pycache__/
+gp-module/notebooks/.ipynb_checkpoints/
+gp-module/src/gptoy.egg-info/
