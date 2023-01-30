@@ -1,0 +1,12 @@
+[project]
+name = "gptoy"
+version = "0.0.1"
+dependencies = [
+    'gym',
+    'matplotlib',
+    'jupyterthemes',
+    'scikit-learn',
+	'imageio',
+	'omegaconf'
+]
+

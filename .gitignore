@@ -9,7 +9,12 @@ stable_baselines/wandb
 stable_baselines/logs
 stable_baselines/slurm*
 stable_baselines/scripts/__pycache__/
+stable_baselines/__pycache__/
 
 bsm-models/bsm_models.egg-info
 bsm-models/bsm_models/__pycache__/
 bsm-models/bsm_models/envs/__pycache__/
+
+gp-module/src/__pycache__/
+gp-module/notebooks/.ipynb_checkpoints/
+gp-module/src/gptoy.egg-info/
