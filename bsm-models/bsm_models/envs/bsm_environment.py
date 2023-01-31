@@ -28,16 +28,15 @@ PHENOENV_DEFAULT_CONFIG = OmegaConf.create({
     'ps_top': 15,
     'goal': 100,
     'kernel_bandwidth': 0.3,
-    'density_limit': 0.3,
     'kernel':  'gaussian',
     'norm_min': -1,
     'norm_max': 1,
-    'parameter_shift_mode': True,
+    'parameter_shift_mode': False,
     'density_limit': 1.,
     'density_state': False,
     'observables_state': False,
     'parameters_state': True,
-    'reward_function': 'density_difference',
+    'reward_function': 'exponential_density',
     'simulator_name': 'SPhenoHbHs',
     'training': True
         })
@@ -403,10 +402,10 @@ class PhenoEnv_v3(gym.Env):
         lh = self.simulator.run(self.state_real)
         if lh is not None:
             reward = self.reward_function(
-                    lh, self.lh_factor,self.density_tm1, self.density, self.d_factor
+                    lh, self.lh_factor, self.density, self.d_factor
                     )
         else:
-            reward = -10
+            reward = -1.
             self.info["Physical"] = False
         return reward
     
