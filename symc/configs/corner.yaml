@@ -1,0 +1,9 @@
+diag_kind: "kde"
+corner: True 
+plot_kws: 
+  marker:
+  s: 5 
+  edgecolor: None
+diag_kws: 
+  fill: False
+height: 2.5

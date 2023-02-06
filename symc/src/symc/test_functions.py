@@ -16,6 +16,14 @@ def egg_box(x, dimension, config=None):
     return observation.reshape(len(x),-1)
 
 @register
+def rosenbrock2d(x, dimension, config=None):
+    x = x.reshape(-1, dimension)
+    f = np.zeros(x.shape[0])
+    for i in range(dimension-1):
+        f += (1-x[:,i])**2 + 100*(x[:,i+1] - x[:,i]**2)**2
+    return f.reshape(len(x),1)
+
+@register
 def gaussian_2d(x,y,mu1=13.5,mu2=13.5,height=100):
     '''
     Args: x1, x2

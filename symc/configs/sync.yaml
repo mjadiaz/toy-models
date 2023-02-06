@@ -1,0 +1,9 @@
+simulation: 'rosenbrock2d'    # Name
+dimension:                    
+  input: 2
+  output: 1
+bounds: [[0, 31]]             # Bounds for each variable [[x1min, x1max],[x2min,x2max]...]
+normalised_input: False       # True if input comes in the range of norm_limits
+norm_limits: [[-1, 1]]        
+sim_config: None              # Internal config for custom Simulations
+
