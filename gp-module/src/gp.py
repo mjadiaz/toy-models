@@ -62,8 +62,5 @@ class GPModule:
         self.model.eval()
         self.likelihood.eval()
 
-        observed_pred = self.likelihood(self.model(state))
-        lower, upper = observed_pred.confidence_region()
-        std = (upper - lower) / 2.
-        
-        return observed_pred.loc.detach(), std.detach()
+        prediction = self.likelihood(self.model(state))
+        return prediction.mean.detach(), prediction.stddev.detach()
